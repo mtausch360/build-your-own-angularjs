@@ -3135,6 +3135,89 @@ describe('$compile', function() {
       });
     });
 
+    it('works with thing 1', function() {
+      var injector = makeInjectorWithDirectives({
+        inner: function() {
+          return {
+            transclude: true,
+            template: '<u ng-transclude></u>'
+          };
+        }
+      });
+      injector.invoke(function($compile, $rootScope) {
+        var el = $('<inner>y</inner>');
+        $compile(el)($rootScope);
+        expect(el.html()).toEqual('<u ng-transclude="">y</u>');
+      });
+    });
+
+    it('works with nested transcludes', function() {
+      var injector = makeInjectorWithDirectives({
+        inner: function() {
+          return {
+            transclude: true,
+            template: '<u ng-transclude></u>'
+          };
+        },
+        workaround: function() {
+          return {
+            transclude: true,
+            template: '<a href="#"><inner><foo ng-transclude></foo></inner></a>'
+          };
+        }
+      });
+      injector.invoke(function($compile, $rootScope) {
+        var el = $('<workaround>y</workaround>');
+        $compile(el)($rootScope);
+        expect(el.html()).toEqual('<a href="#"><inner><u ng-transclude=""><foo ng-transclude="">y</foo></u></inner></a>');
+      });
+    });
+
+    it('works with nested transcludes without wrap', function() {
+      var injector = makeInjectorWithDirectives({
+        inner: function() {
+          return {
+            transclude: true,
+            template: '<u my-trans></u>'
+          };
+        },
+        workaround: function() {
+          return {
+            transclude: true,
+            template: '<a href="#"><inner><foo my-trans></foo></inner></a>'
+          };
+        },
+        outer: function() {
+          return {
+            transclude: true,
+            template: '<a href="#"><inner my-trans></inner></a>'
+          };
+        },
+        myTrans: function() {
+          return {
+            link: function(scope, element, attrs, ctrl, trans) {
+              var trcluded = trans();
+              //console.log('tr', trcluded.length);
+              element.empty().append(trcluded);
+            }
+          };
+        }
+      });
+      injector.invoke(function($compile, $rootScope) {
+        var el = $('<inner>y</inner>');
+        $compile(el)($rootScope);
+        expect(el.html()).toEqual('<u my-trans="">y</u>');
+
+        el = $('<workaround>y</workaround>');
+        $compile(el)($rootScope);
+        expect(el.html()).toEqual('<a href="#"><inner><u my-trans=""><foo my-trans="">y</foo></u></inner></a>');
+
+        el = $('<outer>y</outer>');
+        $compile(el)($rootScope);
+        expect(el.html()).toEqual('<a href="#"><inner my-trans=""><u my-trans="">y</u></inner></a>');
+      });
+    });
+
   });
 
   describe('clone attach function', function() {
@@ -3702,6 +3785,24 @@ describe('$compile', function() {
       });
     });
 
+    it('denormalizes directive templates', function() {
+    var injector = createInjector(['ng', function($interpolateProvider, $compileProvider) {
+      $interpolateProvider.startSymbol('[[').endSymbol(']]');
+      $compileProvider.directive('myDirective', function() {
+        return {
+          template: 'Value is {{myExpr}}'
+        };
+      });
+    }]);
+    injector.invoke(function($compile, $rootScope) {
+      var el = $('<div my-directive></div>');
+      $rootScope.myExpr = 42;
+      $compile(el)($rootScope);
+      $rootScope.$apply();
+
+      expect(el.html()).toEqual('Value is 42');
+    });
+  });
 
   });
 
